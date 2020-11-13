@@ -32,6 +32,19 @@ def get_max_value(l):
 
     return l,max_value_index
 
+def get_max_edge_value(l,idx):
+    temp_l = l[0,0,:idx+1]
+    max_value = max(list(temp_l))
+    for i in range(len(list(temp_l))):
+        if list(temp_l)[i] == max_value:
+            temp_l[i] = 1
+        else:
+            temp_l[i] = 0
+    max_value_index = list(temp_l).index(max_value)
+    l[0,0,:idx+1] = temp_l
+
+    return l,max_value_index
+
 
 def binary_cross_entropy_weight(y_pred, y,has_weight=False, weight_length=1, weight_max=10):
     '''
