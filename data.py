@@ -51,37 +51,19 @@ def generate_Graph(matrix, G:nx.Graph,args):
     N, _ = matrix.shape
     node_idx, f_dict = [],[]
     for node in range(N):
-        indicator = matrix[node, :args.max_node_feature_num]
+        indicator = matrix[node, args.max_num_node:]
         if indicator.any():
             node_idx.append(node)
-            f_dict.append({f'f{feature_idx}': matrix[node, feature_idx] for feature_idx in range(args.max_node_feature_num)})
+            f_dict.append({f'f{feature_idx}': matrix[node, args.max_num_node+feature_idx] for feature_idx in range(args.max_node_feature_num)})
     node_list = list(zip(node_idx,f_dict))
     G.add_nodes_from(node_list)
     #edge
-    next_node_num = []
     for node in range(N):
-        indicator = matrix[node, args.max_node_feature_num:args.max_node_feature_num+args.max_child_node]
+        indicator = matrix[node, :node]
         if indicator.any():
-            for idx in range(args.max_child_node):
-                if matrix[node, args.max_node_feature_num+idx] == 1:
-                    child_num = idx
-                    next_node_num.append(child_num)
-
-    used_node = []
-    while sum(next_node_num) != 0:
-        curr_last_element = find_last_element(next_node_num)
-        while next_node_num[curr_last_element] > 0:
-            if len(used_node) != len(next_node_num) - (curr_last_element+1):
-                for i in range(curr_last_element + 1, len(next_node_num)):
-                    if i not in used_node:
-                        G.add_edge(curr_last_element, i)
-                        next_node_num[curr_last_element] = next_node_num[curr_last_element] - 1
-                        if next_node_num[i] == 0:
-                            used_node.append(i)
-                        if next_node_num[curr_last_element] == 0:
-                            break
-            else:
-                next_node_num[curr_last_element] = 0
+            for idx in range(node+1):
+                if matrix[node, idx] == 1:
+                    G.add_edge(node,idx)
 
     return G
 
@@ -92,8 +74,8 @@ def find_last_element(list):
 ########## use pytorch dataloader
 class Graph_sequence_sampler_pytorch(torch.utils.data.Dataset):
     def __init__(self, G_list, args, max_num_node=None, max_prev_node=None, iteration=20000):
-        self.adj_all, self.node_num_all, self.raw_node_f_all, self.child_num, self.len_all = \
-            [], [], [], [], []
+        self.adj_all, self.node_num_all, self.raw_node_f_all, self.len_all = \
+            [], [], [], []
         self.DFS_first_node = []
         self.args = args
         for i, G in enumerate(G_list):
@@ -107,19 +89,6 @@ class Graph_sequence_sampler_pytorch(torch.utils.data.Dataset):
 
             node_idx_global = np.asarray(list(G.nodes))
             self.node_num_all.append(node_idx_global)
-            child_dic = {}
-            max_child_node = 0
-            for node in G.nodes():
-                if G.nodes[node]['f1'] == 1:
-                    num_neighbors = len(list(G.neighbors(node)))
-                    child_dic[list(G.nodes).index(node)] = num_neighbors
-                    max_child_node = max(num_neighbors,max_child_node)
-                else:
-                    num_neighbors = len(list(G.neighbors(node)))
-                    child_dic[list(G.nodes).index(node)] = num_neighbors-1
-                    max_child_node = max(num_neighbors-1, max_child_node)
-            self.max_child_node = max_child_node+1
-            self.child_num.append(child_dic)
 
             self.raw_node_f_all.append(dict(G.nodes._nodes))
 
@@ -138,11 +107,9 @@ class Graph_sequence_sampler_pytorch(torch.utils.data.Dataset):
     def __getitem__(self, idx):
         adj_copy = self.adj_all[idx].copy()
         node_dict = self.raw_node_f_all[idx].copy()
-        child_num = self.child_num[idx].copy()
         node_num_list = self.node_num_all[idx].copy()
 
         node_feature = self.construct_raw_node_f(node_dict,node_num_list)
-        number_of_children = self.construct_node_child(child_num, node_num_list)
 
         len_batch = adj_copy.shape[0]
 
@@ -152,11 +119,19 @@ class Graph_sequence_sampler_pytorch(torch.utils.data.Dataset):
         x_idx = np.array(dfs_seq(G,start_idx))
 
         node_feature = node_feature[x_idx,:]
-        number_of_children = number_of_children[x_idx,:]
+        adj_copy = adj_copy[np.ix_(x_idx,x_idx)]
+        adj_low_tri = np.tril(adj_copy,k=-1)
 
-        x_batch = np.zeros((self.n+1,node_feature.shape[1]+self.args.max_child_node))
+        x_batch = np.zeros((self.n+1,self.n+node_feature.shape[1]))
         x_batch[0,:] = 1
-        x_batch[1:node_feature.shape[0]+1,:node_feature.shape[1]+number_of_children.shape[1]] = np.concatenate((node_feature, number_of_children), axis=1)
+        temp_adj = np.zeros((self.n, self.n))
+        temp_feature = np.zeros((self.n,node_feature.shape[1]))
+
+        temp_adj[:adj_low_tri.shape[0],:adj_low_tri.shape[1]] = adj_low_tri
+        temp_feature[:node_feature.shape[0],:node_feature.shape[1]] = node_feature
+        # x_batch[1:node_feature.shape[0]+1,:node_feature.shape[0]+node_feature.shape[1]] = np.concatenate((adj_low_tri,node_feature), axis=1)
+        x_batch[1:self.n + 1, :] = np.concatenate(
+            (temp_adj,temp_feature), axis=1)
 
         # x_batch = np.zeros((self.n, node_feature.shape[1] + self.args.max_child_node))
         # x_batch[:node_feature.shape[0], :node_feature.shape[1]+number_of_children.shape[1]] = np.concatenate((node_feature, number_of_children), axis=1)
