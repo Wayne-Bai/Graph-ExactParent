@@ -66,7 +66,7 @@ if __name__ == '__main__':
         num_samples=args.batch_size * args.batch_ratio, replacement=True)
     train_set_loader = torch.utils.data.DataLoader(train_set, batch_size=args.batch_size, num_workers=args.num_workers,
                                                    sampler=sample_strategy)
-    sample_strategy = torch.utils.data.sampler.WeightedRandomSampler(
+    sample_strategy = torch.utils.data.sa1mpler.WeightedRandomSampler(
         [1.0 / len(test_set) for i in range(len(test_set))],
         num_samples=args.test_total_size, replacement=True)
     test_set_loader = torch.utils.data.DataLoader(test_set, batch_size=args.test_batch_size,
@@ -75,15 +75,15 @@ if __name__ == '__main__':
 
     ### model initialization
 
-    rnn = GRU_plain(input_size=args.max_node_feature_num+args.max_child_node, embedding_size=args.embedding_size_rnn,
+    rnn = GRU_plain(input_size=args.max_num_node+args.max_node_feature_num, embedding_size=args.embedding_size_rnn,
                         hidden_size=args.hidden_size_rnn, num_layers=args.num_layers, has_input=True,
                         has_output=True, output_size=args.hidden_size_rnn_output).cuda()
     node_f_gen = MLP_plain(h_size=args.hidden_size_rnn_output, embedding_size=args.embedding_size_output,
-                               y_size=args.max_node_feature_num+args.max_child_node).cuda()
-    output = GRU_plain(input_size=args.max_node_feature_num+args.max_child_node, embedding_size=args.embedding_size_rnn_output,
+                               y_size=args.max_node_feature_num+args.max_num_node).cuda()
+    output = GRU_plain(input_size=args.max_node_feature_num+args.max_num_node, embedding_size=args.embedding_size_rnn_output,
                            hidden_size=args.hidden_size_rnn_output, num_layers=args.num_layers, has_input=True,
                            has_output=True,
-                           output_size=args.max_node_feature_num+args.max_child_node).cuda()  # TODO: understand input_size, output_size ?
+                           output_size=args.max_node_feature_num+args.max_num_node).cuda()  # TODO: understand input_size, output_size ?
     edge_f_gen = None
 
     ### start training
