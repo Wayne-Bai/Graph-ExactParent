@@ -124,7 +124,7 @@ def test_rnn_epoch(epoch, args, rnn, output, node_f_gen=None, edge_f_gen=None, t
                 edge = torch.softmax(x_pred_step[bs:bs+1,:,:max_num_node],dim=2)
                 node_feature = torch.softmax(x_pred_step[bs:bs+1,:,max_num_node:],dim=2)
 
-                max_p_parent_node, parent_node_index = get_max_value(edge)
+                max_p_parent_node, parent_node_index = get_max_edge_value(edge,i)
 
                 if i == 0:
                     node_feature = node_feature * whole_node_rule[bs][parent_node_index]
